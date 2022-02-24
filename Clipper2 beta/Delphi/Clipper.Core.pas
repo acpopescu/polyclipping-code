@@ -139,7 +139,8 @@ function GetBounds(const paths: TPathsD): TRectD; overload;
 procedure InflateRect(var rec: TRect64; dx, dy: Int64); overload;
 procedure InflateRect(var rec: TRectD; dx, dy: double); overload;
 function UnionRect(const rec, rec2: TRect64): TRect64; overload;
-function UnionRect(const rec, rec2: TRectD): TRectD; overload;
+function UnionRect(const rec1, rec2: TRectD;
+  ValidateAsOpenPath: Boolean = false): TRectD; overload;
 function RotateRect(const rec: TRect64; angleRad: double): TRect64; overload;
 function RotateRect(const rec: TRectD; angleRad: double): TRectD; overload;
 procedure OffsetRect(var rec: TRect64; dx, dy: Int64); overload;
@@ -923,16 +924,29 @@ begin
 end;
 //------------------------------------------------------------------------------
 
-function UnionRect(const rec, rec2: TRectD): TRectD;
+function IsValidRec(const rec: TRectD; isOpen: Boolean): Boolean;
 begin
-  if rec.IsEmpty then result := rec2
-  else if rec2.IsEmpty then result := rec
+  if (rec.Height > 0) and (rec.Width > 0) then
+    Result := true
+  else
+    Result := isOpen and (rec.Height >= 0) and (rec.Width > 0) and
+      ((rec.Height > 0) or (rec.Width > 0)); //a neg. height or width is invalid
+end;
+//------------------------------------------------------------------------------
+
+function UnionRect(const rec1, rec2: TRectD;
+  ValidateAsOpenPath: Boolean = false): TRectD;
+var
+  rec1IsEmpty, rec2IsEmpty: boolean;
+begin
+  if not IsValidRec(rec1, ValidateAsOpenPath) then result := rec2
+  else if not IsValidRec(rec2, ValidateAsOpenPath) then result := rec1
   else
   begin
-    result.Left := min(rec.Left, rec2.Left);
-    result.Right := max(rec.Right, rec2.Right);
-    result.Top := min(rec.Top, rec2.Top);
-    result.Bottom := max(rec.Bottom, rec2.Bottom);
+    result.Left := min(rec1.Left, rec2.Left);
+    result.Right := max(rec1.Right, rec2.Right);
+    result.Top := min(rec1.Top, rec2.Top);
+    result.Bottom := max(rec1.Bottom, rec2.Bottom);
   end;
 end;
 //------------------------------------------------------------------------------

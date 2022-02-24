@@ -320,6 +320,13 @@ begin
 end;
 //------------------------------------------------------------------------------
 
+function IsOpenEnd(e: PActive): Boolean; overload; {$IFDEF INLINING} inline; {$ENDIF}
+begin
+  Result := e.LocMin.IsOpen and
+    (e.vertTop.flags * [vfOpenStart, vfOpenEnd] <> []);
+end;
+//------------------------------------------------------------------------------
+
 function IsOpen(outrec: TOutRec): Boolean; overload; {$IFDEF INLINING} inline; {$ENDIF}
 begin
   Result := outrec.State = osOpen;
@@ -1688,8 +1695,7 @@ begin
   e2.OutRec.Pts := nil;
   e2.OutRec.Owner := e1.OutRec; //this may be redundant
 
-  if IsOpen(e1) and
-    (e1.LocMin.vertex.flags * [vfOpenStart,vfOpenEnd] <> []) then
+  if IsOpenEnd(e1) then
   begin
     e2.OutRec.Pts := e1.OutRec.Pts;
     e1.OutRec.Pts := nil;
@@ -2347,7 +2353,7 @@ var
 var
   e: PActive;
   pt: TPoint64;
-  isMax: Boolean;
+  isMax, horzIsOpen: Boolean;
 begin
 (*******************************************************************************
 * Notes: Horizontal edges (HEs) at scanline intersections (ie at the top or    *
@@ -2365,7 +2371,8 @@ begin
 *******************************************************************************)
 
   //with closed paths, simplify consecutive horizontals into a 'single' edge ...
-  if not IsOpen(horzEdge) then
+  horzIsOpen := IsOpen(horzEdge);
+  if not horzIsOpen then
   begin
     pt := horzEdge.Bot;
     while not IsMaxima(horzEdge) and
@@ -2381,9 +2388,8 @@ begin
 
   maxPair := nil;
   isMax := IsMaxima(horzEdge);
-  if isMax and (not IsOpen(horzEdge) or
-      ([vfOpenStart, vfOpenEnd] * horzEdge.vertTop.flags = [])) then
-        maxPair := GetMaximaPair(horzEdge);
+  if isMax and not IsOpenEnd(horzEdge) then
+    maxPair := GetMaximaPair(horzEdge);
 
   ResetHorzDirection;
   if IsHotEdge(horzEdge) then
@@ -2413,7 +2419,7 @@ begin
 
       //if horzEdge is a maxima, keep going until we reach
       //its maxima pair, otherwise check for break conditions
-      if not isMax then
+      if not isMax or IsOpenEnd(horzEdge) then
       begin
         //otherwise stop when 'e' is beyond the end of the horizontal line
         if (isLeftToRight and (e.CurrX > horzRight)) or
@@ -2514,7 +2520,7 @@ begin
   eNext := e.NextInAEL;
   Result := eNext;
 
-  if IsOpen(e) and ([vfOpenStart, vfOpenEnd] * e.vertTop.flags <> []) then
+  if IsOpenEnd(e) then
   begin
     if IsHotEdge(e) then AddOutPt(e, e.Top);
     if not IsHorizontal(e) then
