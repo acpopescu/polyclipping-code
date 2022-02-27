@@ -1,7 +1,7 @@
 ﻿/*******************************************************************************
 * Author    :  Angus Johnson                                                   *
 * Version   :  10.0 (release candidate 1) - also known as Clipper2             *
-* Date      :  19 February 2022                                                *
+* Date      :  27 February 2022                                                *
 * Website   :  http://www.angusj.com                                           *
 * Copyright :  Angus Johnson 2010-2022                                         *
 * Purpose   :  This module contains simple functions that will likely cover    *
@@ -85,6 +85,17 @@ namespace ClipperLib2
       return solution;
     }
 
+    public static Paths InflatePaths(Paths paths, double delta, bool isOpen)
+    {
+      ClipperOffset co = new ClipperOffset();
+      if (isOpen)
+        co.AddPaths(paths, JoinType.Round, EndType.Round);
+      else
+        co.AddPaths(paths, JoinType.Round, EndType.Polygon);
+      PathsD tmp = co.Execute(delta);
+      return Paths(tmp);
+    }
+
     public static PathsD InflatePaths(PathsD paths, double delta, bool isOpen)
     {
       ClipperOffset co = new ClipperOffset();
@@ -139,6 +150,70 @@ namespace ClipperLib2
       for (int i = 0; i < cnt; i++)
         a += Area(paths[i]);
       return a;
+    }
+
+    public static bool IsClockwise(Path poly)
+    {
+      return Area(poly) >= 0;
+    }
+
+    public static bool IsClockwise(PathD poly)
+    {
+      return Area(poly) >= 0;
+    }
+
+    public static Path ReversePath(Path path)
+    {
+      int cntMin1 = path.Count - 1;
+      Path result = new Path(cntMin1 + 1);
+      for (int i = 0; i <= cntMin1; i++)
+        result.Add(path[cntMin1 - i]);
+      return result;
+    }
+
+    public static PathD ReversePath(PathD path)
+    {
+      int cntMin1 = path.Count - 1;
+      PathD result = new PathD(cntMin1 + 1);
+      for (int i = 0; i <= cntMin1; i++)
+        result.Add(path[cntMin1 - i]);
+      return result;
+    }
+
+    public static Paths ReversePaths(Paths paths)
+    {
+      int cnt = paths.Count;
+      Paths result = new Paths(cnt);
+      for (int i = 0; i < cnt; i++)
+        result.Add(ReversePath(paths[i]));
+      return result;
+    }
+
+    public static PathsD ReversePaths(PathsD paths)
+    {
+      int cnt = paths.Count;
+      PathsD result = new PathsD(cnt);
+      for (int i = 0; i < cnt; i++)
+        result.Add(ReversePath(paths[i]));
+      return result;
+    }
+
+    public static Path Path(PathD path)
+    {
+      int cnt = path.Count;
+      Path res = new Path(cnt);
+      for (int i = 0; i < cnt; i++)
+        res.Add(new Point64(path[i]));
+      return res;
+    }
+
+    public static Paths Paths(PathsD paths)
+    {
+      int cnt = paths.Count;
+      Paths res = new Paths(cnt);
+      for (int i = 0; i < cnt; i++)
+        res.Add(Path(paths[i]));
+      return res;
     }
 
     public static Path ScalePath(PathD path, double scale)

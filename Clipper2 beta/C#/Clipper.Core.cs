@@ -1,7 +1,7 @@
 ﻿/*******************************************************************************
 * Author    :  Angus Johnson                                                   *
 * Version   :  10.0 (release candidate 1) - also known as Clipper2             *
-* Date      :  19 February 2022                                                *
+* Date      :  27 February 2022                                                *
 * Website   :  http://www.angusj.com                                           *
 * Copyright :  Angus Johnson 2010-2022                                         *
 * Purpose   :  Core structures and functions for the Clipper Library           *
@@ -23,6 +23,12 @@ namespace ClipperLib2
     public long X;
     public long Y;
 
+    public Point64(Point64 pt)
+    {
+      this.X = pt.X;
+      this.Y = pt.Y;
+    }
+
     public Point64(long x, long y)
     {
       this.X = x;
@@ -33,6 +39,12 @@ namespace ClipperLib2
     {
       this.X = (long)Math.Round(x);
       this.Y = (long)Math.Round(y);
+    }
+
+    public Point64(PointD pt)
+    {
+      this.X = (long)Math.Round(pt.x);
+      this.Y = (long)Math.Round(pt.y);
     }
 
     public static bool operator ==(Point64 lhs, Point64 rhs)
@@ -65,6 +77,18 @@ namespace ClipperLib2
   {
     public double x;
     public double y;
+
+    public PointD(PointD pt)
+    {
+      this.x = pt.x;
+      this.y = pt.y;
+    }
+
+    public PointD(Point64 pt)
+    {
+      this.x = pt.X;
+      this.y = pt.Y;
+    }
 
     public PointD(long x, long y)
     {
@@ -270,42 +294,6 @@ namespace ClipperLib2
           (dy1 * (seg2b.X - seg1a.X) - dx1 * (seg2b.Y - seg1a.Y)) < 0) &&
           ((dy2 * (seg1a.X - seg2a.X) - dx2 * (seg1a.Y - seg2a.Y)) *
           (dy2 * (seg1b.X - seg2a.X) - dx2 * (seg1b.Y - seg2a.Y)) < 0));
-    }
-
-    public static Path ReversePath(Path path)
-    {
-      int cntMin1 = path.Count - 1;
-      Path result = new Path(cntMin1 + 1);
-      for (int i = 0; i <= cntMin1; i++)
-        result.Add(path[cntMin1 - i]);
-      return result;
-    }
-
-    public static PathD ReversePath(PathD path)
-    {
-      int cntMin1 = path.Count - 1;
-      PathD result = new PathD(cntMin1 + 1);
-      for (int i = 0; i <= cntMin1; i++)
-        result.Add(path[cntMin1 - i]);
-      return result;
-    }
-
-    public static Paths ReversePaths(Paths paths)
-    {
-      int cnt = paths.Count;
-      Paths result = new Paths(cnt);
-      for (int i = 0; i < cnt; i++)
-        result.Add(ReversePath(paths[i]));
-      return result;
-    }
-
-    public static PathsD ReversePaths(PathsD paths)
-    {
-      int cnt = paths.Count;
-      PathsD result = new PathsD(cnt);
-      for (int i = 0; i < cnt; i++)
-        result.Add(ReversePath(paths[i]));
-      return result;
     }
 
   } //InternalClipperFuncs

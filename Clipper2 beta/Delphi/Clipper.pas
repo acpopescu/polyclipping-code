@@ -15,7 +15,7 @@ interface
 {$I Clipper.inc}
 
 uses
-  Math, Clipper.Core, Clipper.Engine;
+  Math, Clipper.Core, Clipper.Engine, Clipper.Offset;
 
 type
   TPoint64    = Clipper.Core.TPoint64;
@@ -28,9 +28,7 @@ type
   TPathD      = Clipper.Core.TPathD;
   TPathsD     = Clipper.Core.TPathsD;
 
-  TPolyPath   = Clipper.Engine.TPolyPath;
   TPolyTree   = Clipper.Engine.TPolyTree;
-  TPolyPathD  = Clipper.Engine.TPolyPathD;
   TPolyTreeD  = Clipper.Engine.TPolyTreeD;
 
   TFillRule = Clipper.Core.TFillRule;
@@ -57,6 +55,12 @@ function Difference(const subjects, clips: TPathsD;
   fillRule: TFillRule; decimalPrec: integer = 2): TPathsD; overload;
 function XOR_(const subjects, clips: TPathsD;
   fillRule: TFillRule; decimalPrec: integer = 2): TPathsD; overload;
+
+function InflatePaths(const paths: TPaths; delta: Double;
+  jt: TJoinType = jtRound; et: TEndType = etPolygon): TPaths; overload;
+function InflatePaths(const paths: TPathsD; delta: Double;
+  jt: TJoinType = jtRound; et: TEndType = etPolygon): TPathsD; overload;
+
 
 function PolyTreeToPaths(PolyTree: TPolyTree): TPaths;
 function PolyTreeDToPathsD(PolyTree: TPolyTreeD): TPathsD;
@@ -189,7 +193,41 @@ function XOR_(const subjects, clips: TPathsD;
 begin
   Result := BooleanOp(ctXor, fillRule, subjects, clips, decimalPrec);
 end;
+//------------------------------------------------------------------------------
+//------------------------------------------------------------------------------
 
+function InflatePaths(const paths: TPaths; delta: Double;
+  jt: TJoinType; et: TEndType): TPaths;
+var
+  pp: TPathsD;
+const
+  scale = 100; invScale = 0.01;
+begin
+  pp := ScalePathsD(paths, scale, scale);
+  with TClipperOffset.Create do
+  try
+    AddPaths(pp, jt, et);
+    pp := Execute(delta * scale);
+  finally
+    free;
+  end;
+  Result := ScalePaths(pp, invScale, invScale);
+end;
+//------------------------------------------------------------------------------
+
+function InflatePaths(const paths: TPathsD; delta: Double;
+  jt: TJoinType; et: TEndType): TPathsD;
+var
+  co: TClipperOffset;
+begin
+  co := TClipperOffset.Create();
+  try
+    co.AddPaths(paths, jt, et);
+    Result := co.Execute(delta);
+  finally
+    co.free;
+  end;
+end;
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
 
