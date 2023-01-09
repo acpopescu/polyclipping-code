@@ -366,6 +366,9 @@ public:
   void AddPaths(const Paths& paths, JoinType joinType, EndType endType);
   void Execute(Paths& solution, double delta);
   void Execute(PolyTree& solution, double delta);
+  void Execute(Paths& solution, double deltaX, double deltaY);
+  void Execute(PolyTree& solution, double deltaX, double deltaY);
+  
   void Clear();
   double MiterLimit;
   double ArcTolerance;
@@ -374,13 +377,14 @@ private:
   Path m_srcPoly;
   Path m_destPoly;
   std::vector<DoublePoint> m_normals;
-  double m_delta, m_sinA, m_sin, m_cos;
+  double m_deltaX, m_deltaY, m_sinA, m_sin, m_cos;
+  double m_deltaModuloWithSign;
   double m_miterLim, m_StepsPerRad;
   IntPoint m_lowest;
   PolyNode m_polyNodes;
 
   void FixOrientations();
-  void DoOffset(double delta);
+  void DoOffset(double deltaX, double deltaY);
   void OffsetPoint(int j, int& k, JoinType jointype);
   void DoSquare(int j, int k);
   void DoMiter(int j, int k, double r);

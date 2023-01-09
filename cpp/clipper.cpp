@@ -3886,14 +3886,19 @@ void ClipperOffset::FixOrientations()
 
 void ClipperOffset::Execute(Paths& solution, double delta)
 {
+  Execute(solution,  delta, delta);
+}
+
+void ClipperOffset::Execute(Paths& solution, double deltaX, double deltaY)
+{
   solution.clear();
   FixOrientations();
-  DoOffset(delta);
+  DoOffset(deltaX, deltaY);
   
   //now clean up 'corners' ...
   Clipper clpr;
   clpr.AddPaths(m_destPolys, ptSubject, true);
-  if (delta > 0)
+  if (m_deltaModuloWithSign > 0)
   {
     clpr.Execute(ctUnion, solution, pftPositive, pftPositive);
   }
@@ -3916,14 +3921,18 @@ void ClipperOffset::Execute(Paths& solution, double delta)
 
 void ClipperOffset::Execute(PolyTree& solution, double delta)
 {
+  Execute(solution, delta, delta);
+} 
+void ClipperOffset::Execute(PolyTree& solution, double deltaX, double deltaY)
+{
   solution.Clear();
   FixOrientations();
-  DoOffset(delta);
+  DoOffset(deltaX, deltaY);
 
   //now clean up 'corners' ...
   Clipper clpr;
   clpr.AddPaths(m_destPolys, ptSubject, true);
-  if (delta > 0)
+  if (deltaX > 0 && deltaY > 0)
   {
     clpr.Execute(ctUnion, solution, pftPositive, pftPositive);
   }
@@ -3955,13 +3964,21 @@ void ClipperOffset::Execute(PolyTree& solution, double delta)
 }
 //------------------------------------------------------------------------------
 
-void ClipperOffset::DoOffset(double delta)
+void ClipperOffset::DoOffset(double deltaX, double deltaY)
 {
   m_destPolys.clear();
-  m_delta = delta;
+  m_deltaX = deltaX;
+  m_deltaY = deltaY;
+
+  m_deltaModuloWithSign = std::sqrt(deltaX*deltaX + deltaY*deltaY);
+
+  if( m_deltaX<0.0 || m_deltaY<0.0) 
+  {
+    m_deltaModuloWithSign *= -1;
+  }
 
   //if Zero offset, just copy any CLOSED polygons to m_p and return ...
-  if (NEAR_ZERO(delta)) 
+  if (NEAR_ZERO(m_deltaModuloWithSign)) 
   {
     m_destPolys.reserve(m_polyNodes.ChildCount());
     for (int i = 0; i < m_polyNodes.ChildCount(); i++)
@@ -3979,17 +3996,20 @@ void ClipperOffset::DoOffset(double delta)
 
   double y;
   if (ArcTolerance <= 0.0) y = def_arc_tolerance;
-  else if (ArcTolerance > std::fabs(delta) * def_arc_tolerance) 
-    y = std::fabs(delta) * def_arc_tolerance;
+  else if (ArcTolerance > std::fabs(m_deltaModuloWithSign) * def_arc_tolerance) 
+    y = std::fabs(m_deltaModuloWithSign) * def_arc_tolerance;
   else y = ArcTolerance;
   //see offset_triginometry2.svg in the documentation folder ...
-  double steps = pi / std::acos(1 - y / std::fabs(delta));
-  if (steps > std::fabs(delta) * pi) 
-    steps = std::fabs(delta) * pi;  //ie excessive precision check
+  double steps = pi / std::acos(1 - y / std::fabs(m_deltaModuloWithSign));
+  if (steps > std::fabs(m_deltaModuloWithSign) * pi) 
+    steps = std::fabs(m_deltaModuloWithSign) * pi;  //ie excessive precision check
+
+  // used to sweep a circle in # of steps
   m_sin = std::sin(two_pi / steps);
   m_cos = std::cos(two_pi / steps);
   m_StepsPerRad = steps / two_pi;
-  if (delta < 0.0) m_sin = -m_sin;
+  // make a hole out of the point when any delta offset is negative.
+  if ( m_deltaModuloWithSign<0.0f ) m_sin = -m_sin;
 
   m_destPolys.reserve(m_polyNodes.ChildCount() * 2);
   for (int i = 0; i < m_polyNodes.ChildCount(); i++)
@@ -3998,10 +4018,11 @@ void ClipperOffset::DoOffset(double delta)
     m_srcPoly = node.Contour;
 
     int len = (int)m_srcPoly.size();
-    if (len == 0 || (delta <= 0 && (len < 3 || node.m_endtype != etClosedPolygon)))
+    if (len == 0 || ( m_deltaModuloWithSign <=0 && (len < 3 || node.m_endtype != etClosedPolygon)))
         continue;
 
     m_destPoly.clear();
+    // create a circle, or a square from a single point feature, based on the joint type.
     if (len == 1)
     {
       if (node.m_jointype == jtRound)
@@ -4010,8 +4031,8 @@ void ClipperOffset::DoOffset(double delta)
         for (cInt j = 1; j <= steps; j++)
         {
           m_destPoly.push_back(IntPoint(
-            Round(m_srcPoly[0].X + X * delta),
-            Round(m_srcPoly[0].Y + Y * delta)));
+            Round(m_srcPoly[0].X + X * deltaX),
+            Round(m_srcPoly[0].Y + Y * deltaY)));
           double X2 = X;
           X = X * m_cos - m_sin * Y;
           Y = X2 * m_sin + Y * m_cos;
@@ -4023,8 +4044,8 @@ void ClipperOffset::DoOffset(double delta)
         for (int j = 0; j < 4; ++j)
         {
           m_destPoly.push_back(IntPoint(
-            Round(m_srcPoly[0].X + X * delta),
-            Round(m_srcPoly[0].Y + Y * delta)));
+            Round(m_srcPoly[0].X + X * deltaX),
+            Round(m_srcPoly[0].Y + Y * deltaY)));
           if (X < 0) X = 1;
           else if (Y < 0) Y = 1;
           else X = -1;
@@ -4078,10 +4099,10 @@ void ClipperOffset::DoOffset(double delta)
       {
         int j = len - 1;
         pt1 = IntPoint((cInt)Round(m_srcPoly[j].X + m_normals[j].X *
-          delta), (cInt)Round(m_srcPoly[j].Y + m_normals[j].Y * delta));
+          deltaX), (cInt)Round(m_srcPoly[j].Y + m_normals[j].Y * deltaY));
         m_destPoly.push_back(pt1);
         pt1 = IntPoint((cInt)Round(m_srcPoly[j].X - m_normals[j].X *
-          delta), (cInt)Round(m_srcPoly[j].Y - m_normals[j].Y * delta));
+          deltaX), (cInt)Round(m_srcPoly[j].Y - m_normals[j].Y * deltaY));
         m_destPoly.push_back(pt1);
       }
       else
@@ -4106,11 +4127,11 @@ void ClipperOffset::DoOffset(double delta)
 
       if (node.m_endtype == etOpenButt)
       {
-        pt1 = IntPoint((cInt)Round(m_srcPoly[0].X - m_normals[0].X * delta),
-          (cInt)Round(m_srcPoly[0].Y - m_normals[0].Y * delta));
+        pt1 = IntPoint((cInt)Round(m_srcPoly[0].X - m_normals[0].X * deltaX),
+          (cInt)Round(m_srcPoly[0].Y - m_normals[0].Y * deltaY));
         m_destPoly.push_back(pt1);
-        pt1 = IntPoint((cInt)Round(m_srcPoly[0].X + m_normals[0].X * delta),
-          (cInt)Round(m_srcPoly[0].Y + m_normals[0].Y * delta));
+        pt1 = IntPoint((cInt)Round(m_srcPoly[0].X + m_normals[0].X * deltaX),
+          (cInt)Round(m_srcPoly[0].Y + m_normals[0].Y * deltaY));
         m_destPoly.push_back(pt1);
       }
       else
@@ -4131,15 +4152,17 @@ void ClipperOffset::DoOffset(double delta)
 void ClipperOffset::OffsetPoint(int j, int& k, JoinType jointype)
 {
   //cross product ...
+  // K x J
   m_sinA = (m_normals[k].X * m_normals[j].Y - m_normals[j].X * m_normals[k].Y);
-  if (std::fabs(m_sinA * m_delta) < 1.0) 
+  // if it's a smol offset, don't bother with creating a circle in the point
+  if (std::fabs(m_sinA * m_deltaModuloWithSign) < 1.0) 
   {
     //dot product ...
     double cosA = (m_normals[k].X * m_normals[j].X + m_normals[j].Y * m_normals[k].Y ); 
     if (cosA > 0) // angle => 0 degrees
     {
-      m_destPoly.push_back(IntPoint(Round(m_srcPoly[j].X + m_normals[k].X * m_delta),
-        Round(m_srcPoly[j].Y + m_normals[k].Y * m_delta)));
+      m_destPoly.push_back(IntPoint(Round(m_srcPoly[j].X + m_normals[k].X * m_deltaX),
+        Round(m_srcPoly[j].Y + m_normals[k].Y * m_deltaY)));
       return; 
     }
     //else angle => 180 degrees   
@@ -4147,13 +4170,13 @@ void ClipperOffset::OffsetPoint(int j, int& k, JoinType jointype)
   else if (m_sinA > 1.0) m_sinA = 1.0;
   else if (m_sinA < -1.0) m_sinA = -1.0;
 
-  if (m_sinA * m_delta < 0)
+  if (m_sinA * m_deltaModuloWithSign < 0)
   {
-    m_destPoly.push_back(IntPoint(Round(m_srcPoly[j].X + m_normals[k].X * m_delta),
-      Round(m_srcPoly[j].Y + m_normals[k].Y * m_delta)));
+    m_destPoly.push_back(IntPoint(Round(m_srcPoly[j].X + m_normals[k].X * m_deltaX),
+      Round(m_srcPoly[j].Y + m_normals[k].Y * m_deltaY)));
     m_destPoly.push_back(m_srcPoly[j]);
-    m_destPoly.push_back(IntPoint(Round(m_srcPoly[j].X + m_normals[j].X * m_delta),
-      Round(m_srcPoly[j].Y + m_normals[j].Y * m_delta)));
+    m_destPoly.push_back(IntPoint(Round(m_srcPoly[j].X + m_normals[j].X * m_deltaX),
+      Round(m_srcPoly[j].Y + m_normals[j].Y * m_deltaY)));
   }
   else
     switch (jointype)
@@ -4168,6 +4191,7 @@ void ClipperOffset::OffsetPoint(int j, int& k, JoinType jointype)
       case jtSquare: DoSquare(j, k); break;
       case jtRound: DoRound(j, k); break;
     }
+  // :')
   k = j;
 }
 //------------------------------------------------------------------------------
@@ -4177,19 +4201,20 @@ void ClipperOffset::DoSquare(int j, int k)
   double dx = std::tan(std::atan2(m_sinA,
       m_normals[k].X * m_normals[j].X + m_normals[k].Y * m_normals[j].Y) / 4);
   m_destPoly.push_back(IntPoint(
-      Round(m_srcPoly[j].X + m_delta * (m_normals[k].X - m_normals[k].Y * dx)),
-      Round(m_srcPoly[j].Y + m_delta * (m_normals[k].Y + m_normals[k].X * dx))));
+      Round(m_srcPoly[j].X + m_deltaX * (m_normals[k].X - m_normals[k].Y * dx)),
+      Round(m_srcPoly[j].Y + m_deltaY * (m_normals[k].Y + m_normals[k].X * dx))));
   m_destPoly.push_back(IntPoint(
-      Round(m_srcPoly[j].X + m_delta * (m_normals[j].X + m_normals[j].Y * dx)),
-      Round(m_srcPoly[j].Y + m_delta * (m_normals[j].Y - m_normals[j].X * dx))));
+      Round(m_srcPoly[j].X + m_deltaX * (m_normals[j].X + m_normals[j].Y * dx)),
+      Round(m_srcPoly[j].Y + m_deltaY * (m_normals[j].Y - m_normals[j].X * dx))));
 }
 //------------------------------------------------------------------------------
 
 void ClipperOffset::DoMiter(int j, int k, double r)
 {
-  double q = m_delta / r;
-  m_destPoly.push_back(IntPoint(Round(m_srcPoly[j].X + (m_normals[k].X + m_normals[j].X) * q),
-      Round(m_srcPoly[j].Y + (m_normals[k].Y + m_normals[j].Y) * q)));
+  double qX = m_deltaX / r;
+  double qY = m_deltaY / r;
+  m_destPoly.push_back(IntPoint(Round(m_srcPoly[j].X + (m_normals[k].X + m_normals[j].X) * qX),
+      Round(m_srcPoly[j].Y + (m_normals[k].Y + m_normals[j].Y) * qY)));
 }
 //------------------------------------------------------------------------------
 
@@ -4203,15 +4228,15 @@ void ClipperOffset::DoRound(int j, int k)
   for (int i = 0; i < steps; ++i)
   {
     m_destPoly.push_back(IntPoint(
-        Round(m_srcPoly[j].X + X * m_delta),
-        Round(m_srcPoly[j].Y + Y * m_delta)));
+        Round(m_srcPoly[j].X + X * m_deltaX),
+        Round(m_srcPoly[j].Y + Y * m_deltaY)));
     X2 = X;
     X = X * m_cos - m_sin * Y;
     Y = X2 * m_sin + Y * m_cos;
   }
   m_destPoly.push_back(IntPoint(
-  Round(m_srcPoly[j].X + m_normals[j].X * m_delta),
-  Round(m_srcPoly[j].Y + m_normals[j].Y * m_delta)));
+  Round(m_srcPoly[j].X + m_normals[j].X * m_deltaX),
+  Round(m_srcPoly[j].Y + m_normals[j].Y * m_deltaY)));
 }
 
 //------------------------------------------------------------------------------
@@ -4329,10 +4354,10 @@ double DistanceFromLineSqrd(
   const IntPoint& pt, const IntPoint& ln1, const IntPoint& ln2)
 {
   //The equation of a line in general form (Ax + By + C = 0)
-  //given 2 points (x¹,y¹) & (x²,y²) is ...
-  //(y¹ - y²)x + (x² - x¹)y + (y² - y¹)x¹ - (x² - x¹)y¹ = 0
-  //A = (y¹ - y²); B = (x² - x¹); C = (y² - y¹)x¹ - (x² - x¹)y¹
-  //perpendicular distance of point (x³,y³) = (Ax³ + By³ + C)/Sqrt(A² + B²)
+  //given 2 points (xï¿½,yï¿½) & (xï¿½,yï¿½) is ...
+  //(yï¿½ - yï¿½)x + (xï¿½ - xï¿½)y + (yï¿½ - yï¿½)xï¿½ - (xï¿½ - xï¿½)yï¿½ = 0
+  //A = (yï¿½ - yï¿½); B = (xï¿½ - xï¿½); C = (yï¿½ - yï¿½)xï¿½ - (xï¿½ - xï¿½)yï¿½
+  //perpendicular distance of point (xï¿½,yï¿½) = (Axï¿½ + Byï¿½ + C)/Sqrt(Aï¿½ + Bï¿½)
   //see http://en.wikipedia.org/wiki/Perpendicular_distance
   double A = double(ln1.Y - ln2.Y);
   double B = double(ln2.X - ln1.X);
