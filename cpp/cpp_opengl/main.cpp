@@ -27,7 +27,8 @@ bool show_clipping = true;
 Paths sub, clp, sol;
 int VertCount = 5;
 int scale = 10;
-double delta = 0.0;
+double deltaX = 0.0;
+double deltaY = 0.0;
 
 const LPCWSTR helpText = 
 L"Clipper Demo tips...\n\n"
@@ -45,8 +46,10 @@ L"N - for Negative fills.\n"
 L"------------------------------\n"
 L"nn<ENTER> - number of vertices (3..50).\n"
 L"------------------------------\n"
-L"UP arrow - Expand Solution.\n"
-L"DN arrow - Contract Solution.\n"
+L"UP arrow - Expand Solution on X.\n"
+L"PGUP - Expand Solution on Y.\n"
+L"DN arrow - Contract Solution on X.\n"
+L"PGDN arrow - Contract Solution on Y.\n"
 L"LT or RT arrow - Reset Solution.\n"
 L"------------------------------\n"
 L"M - Miter OffsetPolygons.\n"
@@ -412,7 +415,8 @@ void UpdatePolygons(bool updateSolutionOnly)
   Clipper c;
 	if (!updateSolutionOnly)
 	{
-    delta = 0.0;
+    deltaX = 0.0;
+    deltaY = 0.0;
 
     RECT r;
     GetWindowRect(hStatus, &r);
@@ -436,11 +440,11 @@ void UpdatePolygons(bool updateSolutionOnly)
   c.Execute(ct, sol, pft, pft);
   SaveToFile("solution.txt", sol);
 
-  if (delta != 0.0)
+  if (deltaX != 0.0 || deltaY !=0.0)
   {
     ClipperOffset co;
     co.AddPaths(sol, jt, etClosedPolygon);
-    co.Execute(sol, delta);
+    co.Execute(sol, deltaX, deltaY);
   }
 
 	InvalidateRect(hWnd, NULL, false); 
@@ -491,6 +495,24 @@ LONG WINAPI MainWndProc (HWND hWnd, UINT uMsg, WPARAM  wParam, LPARAM  lParam)
       MessageBox(hWnd, helpText, L"Clipper Demo - Help", 0);
       return 0;
 
+    case WM_KEYDOWN:
+        switch (wParam)
+        {
+        case VK_NEXT:
+            if (deltaY < 20 * scale) 
+            { 
+                deltaY += scale; UpdatePolygons(true); 
+            } 
+            return 0;
+        case VK_PRIOR:
+            if (deltaY > -20 * scale) 
+            { 
+                deltaY -= scale; UpdatePolygons(true); 
+            }
+            return 0;
+        }
+      return DefWindowProc(hWnd, uMsg, wParam, lParam); ;
+
     case WM_COMMAND:
       switch(LOWORD(wParam))
       {
@@ -511,12 +533,12 @@ LONG WINAPI MainWndProc (HWND hWnd, UINT uMsg, WPARAM  wParam, LPARAM  lParam)
             DoNumericKeyPress(LOWORD(wParam) - 110); 
             break;
           case 120: UpdatePolygons(false); break; //space, return
-          case 131: if (delta < 20*scale) {delta += scale; UpdatePolygons(true);} break;
-          case 132: if (delta > -20*scale) {delta -= scale; UpdatePolygons(true);} break;
-          case 133: if (delta != 0.0) {delta = 0.0; UpdatePolygons(true);} break;
-          case 141: {jt = jtMiter; if (delta != 0.0) UpdatePolygons(true);} break;
-          case 142: {jt = jtSquare; if (delta != 0.0) UpdatePolygons(true);} break;
-          case 143: {jt = jtRound; if (delta != 0.0) UpdatePolygons(true);} break;
+          case 131: if (deltaX < 20*scale) {deltaX += scale; UpdatePolygons(true);} break;
+          case 132: if (deltaX > -20*scale) {deltaX -= scale; UpdatePolygons(true);} break;
+          case 133: if (deltaX != 0.0 || deltaY != 0.0) { deltaX = 0.0; deltaY = 0.0; UpdatePolygons(true); } break;
+          case 141: {jt = jtMiter; if (deltaX != 0.0 || deltaY != 0.0) UpdatePolygons(true);} break;
+          case 142: {jt = jtSquare; if (deltaX != 0.0 || deltaY != 0.0) UpdatePolygons(true);} break;
+          case 143: {jt = jtRound; if (deltaX != 0.0 || deltaY != 0.0) UpdatePolygons(true);} break;
           default: return DefWindowProc (hWnd, uMsg, wParam, lParam); 
       }
       return 0; 
